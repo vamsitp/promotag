@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29403.142
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PromoTagz", "PromoTagz\PromoTagz.csproj", "{E62CE513-BD5B-42BA-8C79-FF458F46F158}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E62CE513-BD5B-42BA-8C79-FF458F46F158}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E62CE513-BD5B-42BA-8C79-FF458F46F158}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E62CE513-BD5B-42BA-8C79-FF458F46F158}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E62CE513-BD5B-42BA-8C79-FF458F46F158}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {59F3A062-73C5-4E45-95B0-CE5CCBAEED01}
+	EndGlobalSection
+EndGlobal
