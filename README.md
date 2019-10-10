@@ -1,4 +1,4 @@
-# promotag
+# promotagz
 AzDO Tags Promoter - Tags at `PBI`/`US` level will be promoted to the parent `Feature` and then to the `Epic`
 
 **Usage:**
