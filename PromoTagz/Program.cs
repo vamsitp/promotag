@@ -8,7 +8,6 @@
     using System.IO;
     using System.Linq;
     using System.Net.Http;
-    using System.Net.Http.Headers;
     using System.Text;
     using System.Threading.Tasks;
 
@@ -36,11 +35,11 @@
 
         private static string Account => ConfigurationManager.AppSettings[nameof(Account)];
 
-        private static string Project => ConfigurationManager.AppSettings["Project"];
+        private static string Project => ConfigurationManager.AppSettings[nameof(Project)];
 
-        private static string Token => ConfigurationManager.AppSettings["PersonalAccessToken"];
+        private static string PersonalAccessToken => ConfigurationManager.AppSettings[nameof(PersonalAccessToken)];
 
-        private static string Pat => Convert.ToBase64String(Encoding.ASCII.GetBytes($":{Token ?? string.Empty}"));
+        private static string Pat => Convert.ToBase64String(Encoding.ASCII.GetBytes($":{PersonalAccessToken ?? string.Empty}"));
 
         private static string BaseUrl => $"https://dev.azure.com/{Account}/{Project}/_apis/wit";
 
@@ -50,7 +49,7 @@
 
         private static string WorkItemUpdateUrl => $"{BaseUrl}/workItems/{{0}}?api-version={ApiVersion}";
 
-        private static char[] TagsDelimiters = new char[] { ',', ';' };
+        private static char[] TagsDelimiters = new char[] { ' ', ',', ';' };
 
         private static List<string> TagsToPromote => ConfigurationManager.AppSettings[nameof(TagsToPromote)].Split(TagsDelimiters, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
 
@@ -68,12 +67,12 @@
             Console.ReadKey();
         }
 
-        public static async Task Execute(string[] args)
+        public static async Task Execute(string[] tagsToPromote)
         {
             try
             {
-                CheckSettings();
-                await ProcessWorkItems();
+                CheckSettings(tagsToPromote);
+                await ProcessWorkItems(tagsToPromote);
             }
             catch (Exception ex)
             {
@@ -81,15 +80,24 @@
             }
         }
 
-        private static void CheckSettings()
+        private static void CheckSettings(string[] tagsToPromote, bool reset = false)
         {
-            if (string.IsNullOrWhiteSpace(Account) || string.IsNullOrWhiteSpace(Project) || string.IsNullOrWhiteSpace(Token))
+            var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+            var section = config.Sections.OfType<AppSettingsSection>().FirstOrDefault();
+            var settings = section.Settings;
+            var save = false;
+
+            if (reset)
+            {
+                ConfigurationManager.AppSettings.Set(nameof(Account), string.Empty);
+                ConfigurationManager.AppSettings.Set(nameof(Project), string.Empty);
+                ConfigurationManager.AppSettings.Set(nameof(PersonalAccessToken), string.Empty);
+            }
+
+            if (string.IsNullOrWhiteSpace(Account) || string.IsNullOrWhiteSpace(Project) || string.IsNullOrWhiteSpace(PersonalAccessToken))
             {
                 ColorConsole.WriteLine("\n Please provide Azure DevOps details in the format (without braces): <Account> <Project> <PersonalAccessToken>".Black().OnCyan());
                 var details = Console.ReadLine().Split(' ')?.ToList();
-                var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-                var section = config.Sections.OfType<AppSettingsSection>().FirstOrDefault();
-                var settings = section.Settings;
 
                 for (var i = 0; i < 3; i++) // Only 4 values required
                 {
@@ -97,23 +105,44 @@
                     settings[key].Value = details[i];
                 }
 
+                save = true;
+            }
+
+            if (tagsToPromote?.Length > 0)
+            {
+                var value = string.Join(' ', tagsToPromote);
+                var prevValue = settings[nameof(TagsToPromote)].Value;
+                if (!value.Trim().Equals(prevValue.Trim()))
+                {
+                    ColorConsole.WriteLine($"\n Overwriting TagsToPromote: '{value}' (Previous: '{settings[nameof(TagsToPromote)].Value}')".Black().OnCyan());
+                    settings[nameof(TagsToPromote)].Value = value;
+                    save = true;
+                }
+            }
+            else
+            {
+                if (TagsToPromote?.Count() == 0)
+                {
+                    ColorConsole.WriteLine("\n No previous Tags found! Please provide the Tags to promote (space-separated)".Black().OnCyan());
+                }
+            }
+
+            if (save)
+            {
                 config.Save(ConfigurationSaveMode.Minimal);
                 ConfigurationManager.RefreshSection(section.SectionInformation.Name);
             }
         }
 
-        private static async Task ProcessWorkItems(bool local = false)
+        private static async Task ProcessWorkItems(string[] tagsToPromote, bool local = false)
         {
             if (local)
             {
                 efus = JsonConvert.DeserializeObject<List<EFU>>(File.ReadAllText(WorkItemsJson));
                 ColorConsole.WriteLine($"Loaded {efus?.Count} Work-items from {WorkItemsJson}");
-                await GetWorkItems();
             }
-            else
-            {
-                await GetWorkItems();
-            }
+
+            await ProcessWorkItemTagsAsync(tagsToPromote).ConfigureAwait(false);
         }
 
         private static void WriteError(string error)
@@ -121,22 +150,24 @@
             ColorConsole.WriteLine($"Error: {error}".White().OnRed());
         }
 
-        private static async Task GetWorkItems()
-        {
-            // GetWorkItemsByQuery(workItems);
-            await GetWorkItemsByStoredQuery(); //.ContinueWith(ContinuationAction);
-        }
-
-        private static async Task GetWorkItemsByStoredQuery()
+        private static async Task ProcessWorkItemTagsAsync(string[] tagsToPromote)
         {
             if (efus == null)
             {
                 efus = new List<EFU>();
                 var wis = await ProcessRequest<WiqlRelationList>(RelationsQueryPath, "{\"query\": \"" + string.Format(WorkItemsQuery, Project) + "\"}"); // AND [Source].[System.AreaPath] UNDER '{1}'
-                ColorConsole.WriteLine($"Work-item relations fetched: {wis.workItemRelations.Length}");
-                var rootItems = wis.workItemRelations.Where(x => x.source == null).ToList();
-                await IterateWorkItems(rootItems, null, wis).ConfigureAwait(false);
-                await SaveWorkItemsAsync().ConfigureAwait(false);
+                if (wis != null)
+                {
+                    ColorConsole.WriteLine($"Work-item relations fetched: {wis.workItemRelations.Length}");
+                    var rootItems = wis.workItemRelations.Where(x => x.source == null).ToList();
+                    await IterateWorkItems(rootItems, null, wis).ConfigureAwait(false);
+                    await PromoteWorkItemTagsAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    CheckSettings(tagsToPromote, true);
+                    await ProcessWorkItemTagsAsync(tagsToPromote).ConfigureAwait(false);
+                }
             }
         }
 
@@ -193,16 +224,16 @@
             return result;
         }
 
-        private static async Task SaveWorkItemsAsync()
+        private static async Task PromoteWorkItemTagsAsync()
         {
             var grouping = efus.Where(x => x.Workitemtype.Equals(UserStory) || x.Workitemtype.Equals(Pbi)).GroupBy(x => x.Parent); // .OrderByDescending(x => x.Id)
-            await SaveWorkItemsAsync(grouping).ConfigureAwait(false);
+            await PromoteWorkItemTagsAsync(grouping).ConfigureAwait(false);
 
             grouping = efus.Where(x => x.Workitemtype.Equals(Feature)).GroupBy(x => x.Parent);
-            await SaveWorkItemsAsync(grouping).ConfigureAwait(false);
+            await PromoteWorkItemTagsAsync(grouping).ConfigureAwait(false);
         }
 
-        private static async Task SaveWorkItemsAsync(IEnumerable<IGrouping<int?, EFU>> grouping)
+        private static async Task PromoteWorkItemTagsAsync(IEnumerable<IGrouping<int?, EFU>> grouping)
         {
             foreach (var group in grouping)
             {

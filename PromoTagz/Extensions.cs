@@ -60,8 +60,15 @@
                 var fex = e as FlurlHttpException;
                 if (fex != null)
                 {
-                    var vex = await fex.GetResponseJsonAsync<JObject>().ConfigureAwait(false);
-                    message = vex?.SelectToken("..message")?.Value<string>() ?? (vex?.SelectToken("..Message")?.Value<string>() ?? e.Message);
+                    try
+                    {
+                        var vex = await fex.GetResponseJsonAsync<JObject>().ConfigureAwait(false);
+                        message = vex?.SelectToken("..message")?.Value<string>() ?? (vex?.SelectToken("..Message")?.Value<string>() ?? e.Message);
+                    }
+                    catch
+                    {
+                        // Do nothing
+                    }
                 }
 
                 var lines = string.Join(" > ", new StackTrace(e, true)?.GetFrames()?.Select(x => x.GetFileLineNumber())?.Where(i => i > 0));

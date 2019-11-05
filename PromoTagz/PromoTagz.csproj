@@ -3,6 +3,23 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.0</TargetFramework>
+    <PackAsTool>true</PackAsTool>
+    <IsTool>true</IsTool>
+    <ToolCommandName>promotagz</ToolCommandName>
+    <PackageOutputPath>./bin</PackageOutputPath>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Authors>Vamsi TP</Authors>
+    <Title>PromoTagz</Title>
+    <Description>AzDevOps Tags Promoter - Specified Tags at PBI/UserStory level will be promoted to the parent Feature and then to the Epic.</Description>
+    <PackageDescription>AzDevOps Tags Promoter - Specified Tags at PBI/UserStory level will be promoted to the parent Feature and then to the Epic.</PackageDescription>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/vamsitp/promotagz</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vamsitp/promotagz</RepositoryUrl>
+    <PackageTags>Azure DevOps;Tags;PBI</PackageTags>
+    <Company>Microsoft</Company>
+    <Version>1.0.0</Version>
+    <StartupObject>PromoTagz.Program</StartupObject>
+    <ApplicationIcon />
   </PropertyGroup>
 
   <ItemGroup>
