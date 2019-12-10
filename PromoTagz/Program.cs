@@ -2,7 +2,9 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.ComponentModel;
     using System.Configuration;
+    using System.Data;
     using System.Diagnostics;
     using System.Globalization;
     using System.IO;
@@ -10,7 +12,7 @@
     using System.Net.Http;
     using System.Text;
     using System.Threading.Tasks;
-
+    using ClosedXML.Excel;
     using ColoredConsole;
 
     using Flurl.Http;
@@ -60,6 +62,8 @@
         private static List<EFU> efus = null;
 
         private static List<WorkItem> workitems = null;
+
+        private static List<WorkItemTag> workItemTags = new List<WorkItemTag>();
 
         [STAThread]
         public static void Main(string[] args)
@@ -164,6 +168,7 @@
                     var rootItems = wis.workItemRelations.Where(x => x.source == null).ToList();
                     await IterateWorkItems(rootItems, null, wis).ConfigureAwait(false);
                     await PromoteWorkItemTagsAsync().ConfigureAwait(false);
+                    WriteToTarget(workItemTags);
                 }
                 else
                 {
@@ -195,10 +200,20 @@
                         var updates = (await ProcessRequest<Updates>(string.Format(CultureInfo.InvariantCulture, WorkItemUpdatesUrl, efu.Id)).ConfigureAwait(false))?.value;
                         if (updates?.Length > 0)
                         {
-                            foreach (var tag in efu.Tags.Where(x => TagsToPromote.Contains(x, StringComparer.OrdinalIgnoreCase)))
+                            foreach (var tag in TagsToPromote)
                             {
-                                var tagged = updates?.Where(x => x?.fields?.SystemTags?.newValue?.Contains(tag) == true)?.OrderBy(x => x.revisedDate)?.FirstOrDefault();
-                                Console.WriteLine($"\t\t>> Tag '{tag}' added to {efu.Workitemtype} #{efu.Id} on: {tagged?.revisedDate.ToString("R") ?? string.Empty}");
+                                var tagged = updates?.Where(x => !(x?.fields?.SystemTags?.oldValue?.Contains(tag) == true) && (x?.fields?.SystemTags?.newValue?.Contains(tag) == true))?.OrderBy(x => x.rev)?.FirstOrDefault();
+                                var untagged = efu.Tags.Contains(tag) ? null : updates?.Where(x => (x?.fields?.SystemTags?.oldValue?.Contains(tag) == true) && !(x?.fields?.SystemTags?.newValue?.Contains(tag) == true))?.OrderByDescending(x => x.rev)?.FirstOrDefault(); // x => x.revisedDate.Year > DateTime.MinValue.Year && x.revisedDate.Year < DateTime.MaxValue.Year
+                                if (tagged != null || untagged != null)
+                                {
+                                    ////Console.WriteLine($"\t\t>> Tag '{tag}' added to {efu.Workitemtype} #{efu.Id} on: {tagged?.revisedDate.ToString("R") ?? string.Empty} and removed on: {untagged?.revisedDate.ToString("R") ?? string.Empty}");
+                                    ////if (!(efu.Tags?.Any(x => TagsToPromote.Contains(x, StringComparer.OrdinalIgnoreCase)) == true))
+                                    ////{
+                                    ////    Console.WriteLine($"\t\t>> Tag '{tag}' duration: {untagged.revisedDate.Subtract(tagged.revisedDate).Days}d {untagged.revisedDate.Subtract(tagged.revisedDate).Hours}h");
+                                    ////}
+                                    var wtag = new WorkItemTag { Id = efu.Id, Title = efu.Title, ChangedBy = $"{tagged?.revisedBy?.displayName} / {untagged?.revisedBy?.displayName}", Type = efu.Workitemtype, Tag = tag, CurrentTags = string.Join(", ", efu.Tags), Added = tagged?.fields?.SystemChangedDate?.newValue, Removed = untagged?.fields?.SystemChangedDate?.newValue };
+                                    workItemTags.Add(wtag);
+                                }
                             }
                         }
                     }
@@ -373,6 +388,40 @@
                 WriteError(err);
                 return default(T);
             }
+        }
+
+        private static void WriteToTarget<T>(IList<T> records)
+        {
+            var wb = new XLWorkbook();
+            var ws = wb.Worksheets.Add("Tags");
+            var table = ws.Cell(1, 1).InsertTable(ToDataTable(records));
+            table.Theme = XLTableTheme.TableStyleLight8;
+            ws.Columns().AdjustToContents();
+            wb.SaveAs("Tags.xlsx");
+        }
+
+        // Credit: https://stackoverflow.com/questions/18100783/how-to-convert-a-list-into-data-table
+        private static DataTable ToDataTable<T>(IList<T> data)
+        {
+            var properties = TypeDescriptor.GetProperties(typeof(T));
+            var table = new DataTable();
+            foreach (PropertyDescriptor prop in properties)
+            {
+                table.Columns.Add(prop.Name, Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType);
+            }
+
+            foreach (T item in data)
+            {
+                var row = table.NewRow();
+                foreach (PropertyDescriptor prop in properties)
+                {
+                    row[prop.Name] = prop.GetValue(item) ?? DBNull.Value;
+                }
+
+                table.Rows.Add(row);
+            }
+
+            return table;
         }
 
         private class Op

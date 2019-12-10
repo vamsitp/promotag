@@ -16,7 +16,6 @@
         public int workItemId { get; set; }
         public int rev { get; set; }
         public Revisedby revisedBy { get; set; }
-        public DateTime revisedDate { get; set; }
         public UpdatedFields fields { get; set; }
         public string url { get; set; }
     }
@@ -33,11 +32,20 @@
     {
         [JsonProperty("System.Tags")]
         public SystemTags SystemTags { get; set; }
+
+        [JsonProperty("System.ChangedDate")]
+        public SystemChangedDate SystemChangedDate { get; set; }
     }
 
     public class SystemTags
     {
         public string newValue { get; set; }
         public string oldValue { get; set; }
+    }
+
+    public class SystemChangedDate
+    {
+        public DateTime newValue { get; set; }
+        public DateTime oldValue { get; set; }
     }
 }
