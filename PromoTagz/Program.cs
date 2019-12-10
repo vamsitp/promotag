@@ -34,6 +34,8 @@
         private const string UserStory = "User Story";
         private const string Pbi = "Product Backlog Item";
         private const string Feature = "Feature";
+        private const string OutputFile = "Tags.xlsx";
+        public static char[] TagsDelimiters = new char[] { ' ', ',', ';' };
 
         private static string Account => ConfigurationManager.AppSettings[nameof(Account)];
 
@@ -53,8 +55,6 @@
 
         private static string WorkItemUpdatesUrl => $"{BaseUrl}/workItems/{{0}}/updates?api-version={ApiVersion}";
 
-        private static char[] TagsDelimiters = new char[] { ' ', ',', ';' };
-
         private static List<string> TagsToPromote => ConfigurationManager.AppSettings[nameof(TagsToPromote)].Split(TagsDelimiters, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
 
         private static readonly string WorkItemsQuery = ConfigurationManager.AppSettings["WorkItemsQuery"];
@@ -69,8 +69,12 @@
         public static void Main(string[] args)
         {
             Execute(args).Wait();
-            ColorConsole.WriteLine($"\nDone! Press any key to quit...".White().OnGreen());
-            Console.ReadKey();
+            ColorConsole.WriteLine($"\nDone! Press 'O' to open the file or any other key to exit...".White().OnGreen());
+            var key = Console.ReadKey();
+            if (File.Exists(OutputFile) && key.Key == ConsoleKey.O)
+            {
+                Process.Start(new ProcessStartInfo(Path.Combine(Environment.CurrentDirectory, OutputFile)) { UseShellExecute = true });
+            }
         }
 
         public static async Task Execute(string[] tagsToPromote)
@@ -195,25 +199,17 @@
                         Parent = parent?.Id
                     };
 
-                    if (efu.Tags != null)
+                    var updates = (await ProcessRequest<Updates>(string.Format(CultureInfo.InvariantCulture, WorkItemUpdatesUrl, efu.Id)).ConfigureAwait(false))?.value;
+                    if (updates?.Length > 0)
                     {
-                        var updates = (await ProcessRequest<Updates>(string.Format(CultureInfo.InvariantCulture, WorkItemUpdatesUrl, efu.Id)).ConfigureAwait(false))?.value;
-                        if (updates?.Length > 0)
+                        foreach (var tag in TagsToPromote)
                         {
-                            foreach (var tag in TagsToPromote)
+                            var tagged = updates?.Where(x => !(x?.fields?.SystemTags?.oldValues?.Contains(tag) == true) && (x?.fields?.SystemTags?.newValues?.Contains(tag) == true))?.OrderBy(x => x.rev)?.FirstOrDefault();
+                            var untagged = efu.Tags?.Contains(tag) == true ? null : updates?.Where(x => (x?.fields?.SystemTags?.oldValues?.Contains(tag) == true) && !(x?.fields?.SystemTags?.newValues?.Contains(tag) == true))?.OrderByDescending(x => x.rev)?.FirstOrDefault(); // x => x.revisedDate.Year > DateTime.MinValue.Year && x.revisedDate.Year < DateTime.MaxValue.Year
+                            if (tagged != null || untagged != null)
                             {
-                                var tagged = updates?.Where(x => !(x?.fields?.SystemTags?.oldValue?.Contains(tag) == true) && (x?.fields?.SystemTags?.newValue?.Contains(tag) == true))?.OrderBy(x => x.rev)?.FirstOrDefault();
-                                var untagged = efu.Tags.Contains(tag) ? null : updates?.Where(x => (x?.fields?.SystemTags?.oldValue?.Contains(tag) == true) && !(x?.fields?.SystemTags?.newValue?.Contains(tag) == true))?.OrderByDescending(x => x.rev)?.FirstOrDefault(); // x => x.revisedDate.Year > DateTime.MinValue.Year && x.revisedDate.Year < DateTime.MaxValue.Year
-                                if (tagged != null || untagged != null)
-                                {
-                                    ////Console.WriteLine($"\t\t>> Tag '{tag}' added to {efu.Workitemtype} #{efu.Id} on: {tagged?.revisedDate.ToString("R") ?? string.Empty} and removed on: {untagged?.revisedDate.ToString("R") ?? string.Empty}");
-                                    ////if (!(efu.Tags?.Any(x => TagsToPromote.Contains(x, StringComparer.OrdinalIgnoreCase)) == true))
-                                    ////{
-                                    ////    Console.WriteLine($"\t\t>> Tag '{tag}' duration: {untagged.revisedDate.Subtract(tagged.revisedDate).Days}d {untagged.revisedDate.Subtract(tagged.revisedDate).Hours}h");
-                                    ////}
-                                    var wtag = new WorkItemTag { Id = efu.Id, Title = efu.Title, ChangedBy = $"{tagged?.revisedBy?.displayName} / {untagged?.revisedBy?.displayName}", Type = efu.Workitemtype, Tag = tag, CurrentTags = string.Join(", ", efu.Tags), Added = tagged?.fields?.SystemChangedDate?.newValue, Removed = untagged?.fields?.SystemChangedDate?.newValue };
-                                    workItemTags.Add(wtag);
-                                }
+                                var wtag = new WorkItemTag { Id = efu.Id, Title = efu.Title, ChangedBy = $"{tagged?.revisedBy?.displayName} / {untagged?.revisedBy?.displayName}", Type = efu.Workitemtype, Tag = tag, CurrentTags = efu.Tags == null ? string.Empty : string.Join(", ", efu.Tags), Added = tagged?.fields?.SystemChangedDate?.newValue, Removed = untagged?.fields?.SystemChangedDate?.newValue };
+                                workItemTags.Add(wtag);
                             }
                         }
                     }
@@ -397,7 +393,7 @@
             var table = ws.Cell(1, 1).InsertTable(ToDataTable(records));
             table.Theme = XLTableTheme.TableStyleLight8;
             ws.Columns().AdjustToContents();
-            wb.SaveAs("Tags.xlsx");
+            wb.SaveAs(OutputFile);
         }
 
         // Credit: https://stackoverflow.com/questions/18100783/how-to-convert-a-list-into-data-table

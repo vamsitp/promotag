@@ -1,7 +1,8 @@
 ﻿namespace PromoTagz
 {
     using System;
-
+    using System.Collections.Generic;
+    using System.Linq;
     using Newtonsoft.Json;
 
     public class Updates
@@ -41,6 +42,11 @@
     {
         public string newValue { get; set; }
         public string oldValue { get; set; }
+
+        [JsonIgnore]
+        public IEnumerable<string> newValues => this.newValue?.Split(Program.TagsDelimiters, StringSplitOptions.RemoveEmptyEntries).Select(x => x?.Trim());
+        [JsonIgnore]
+        public IEnumerable<string> oldValues => this.oldValue?.Split(Program.TagsDelimiters, StringSplitOptions.RemoveEmptyEntries).Select(x => x?.Trim());
     }
 
     public class SystemChangedDate
