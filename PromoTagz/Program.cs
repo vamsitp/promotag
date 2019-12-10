@@ -22,7 +22,7 @@
     {
         private const string WorkItemsJson = "./WorkItems.json";
         private const string Dot = ". ";
-        private const string ApiVersion = "4.1-preview";
+        private const string ApiVersion = "5.1";
         private const string JsonPatchMediaType = "application/json-patch+json";
         private const string JsonMediaType = "application/json";
         private const string AuthHeader = "Authorization";
@@ -48,6 +48,8 @@
         private static string WorkItemsQueryPath = $"{BaseUrl}/workitems?ids={{0}}&api-version={ApiVersion}"; //"queries/Shared Queries/EFUs";
 
         private static string WorkItemUpdateUrl => $"{BaseUrl}/workItems/{{0}}?api-version={ApiVersion}";
+
+        private static string WorkItemUpdatesUrl => $"{BaseUrl}/workItems/{{0}}/updates?api-version={ApiVersion}";
 
         private static char[] TagsDelimiters = new char[] { ' ', ',', ';' };
 
@@ -187,6 +189,19 @@
                         Tags = wi.fields.SystemTags?.Split(TagsDelimiters, StringSplitOptions.RemoveEmptyEntries)?.Select(x => x.Trim())?.ToList(),
                         Parent = parent?.Id
                     };
+
+                    if (efu.Tags != null)
+                    {
+                        var updates = (await ProcessRequest<Updates>(string.Format(CultureInfo.InvariantCulture, WorkItemUpdatesUrl, efu.Id)).ConfigureAwait(false))?.value;
+                        if (updates?.Length > 0)
+                        {
+                            foreach (var tag in efu.Tags.Where(x => TagsToPromote.Contains(x, StringComparer.OrdinalIgnoreCase)))
+                            {
+                                var tagged = updates?.Where(x => x?.fields?.SystemTags?.newValue?.Contains(tag) == true)?.OrderBy(x => x.revisedDate)?.FirstOrDefault();
+                                Console.WriteLine($"\t>> Tag '{tag}' added to {efu.Workitemtype} #{efu.Id} on: {tagged?.revisedDate.ToString("R") ?? string.Empty}");
+                            }
+                        }
+                    }
 
                     efus.Add(efu);
                     parent?.Children.Add(efu.Id);
