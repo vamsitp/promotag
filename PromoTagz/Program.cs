@@ -198,7 +198,7 @@
                             foreach (var tag in efu.Tags.Where(x => TagsToPromote.Contains(x, StringComparer.OrdinalIgnoreCase)))
                             {
                                 var tagged = updates?.Where(x => x?.fields?.SystemTags?.newValue?.Contains(tag) == true)?.OrderBy(x => x.revisedDate)?.FirstOrDefault();
-                                Console.WriteLine($"\t>> Tag '{tag}' added to {efu.Workitemtype} #{efu.Id} on: {tagged?.revisedDate.ToString("R") ?? string.Empty}");
+                                Console.WriteLine($"\t\t>> Tag '{tag}' added to {efu.Workitemtype} #{efu.Id} on: {tagged?.revisedDate.ToString("R") ?? string.Empty}");
                             }
                         }
                     }
