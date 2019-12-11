@@ -59,6 +59,8 @@
 
         private static readonly string WorkItemsQuery = ConfigurationManager.AppSettings["WorkItemsQuery"];
 
+        private static bool ReportOnly => ConfigurationManager.AppSettings.AllKeys.Contains(nameof(ReportOnly)) && bool.Parse(ConfigurationManager.AppSettings[nameof(ReportOnly)]);
+
         private static List<EFU> efus = null;
 
         private static List<WorkItem> workitems = null;
@@ -189,7 +191,7 @@
                 workitems = await GetWorkItems(relations.ToList());
                 foreach (var wi in workitems)
                 {
-                    ColorConsole.WriteLine($" {wi.fields.SystemWorkItemType} ".PadRight(13) + wi.id.ToString().PadLeft(4) + Dot + wi.fields.SystemTitle + $" [{wi.fields.SystemTags}]");
+                    ColorConsole.WriteLine($" {wi.fields.SystemWorkItemType} ".PadRight(25) + wi.id.ToString().PadLeft(4) + Dot + wi.fields.SystemTitle + $" [Tags: {wi.fields.SystemTags}]");
                     var efu = new EFU
                     {
                         Id = wi.id,
@@ -257,6 +259,11 @@
 
             grouping = efus.Where(x => x.Workitemtype.Equals(Feature)).GroupBy(x => x.Parent);
             await PromoteWorkItemTagsAsync(grouping).ConfigureAwait(false);
+
+            if (ReportOnly)
+            {
+                ColorConsole.WriteLine(" Skipped saving PBIs as 'ReportOnly' is set to true in config.".Black().OnWhite());
+            }
         }
 
         private static async Task PromoteWorkItemTagsAsync(IEnumerable<IGrouping<int?, EFU>> grouping)
@@ -322,7 +329,12 @@
 
                 if (update)
                 {
-                    await SaveWorkItemsAsync(parent).ConfigureAwait(false);
+                    var action = remove ? "removed from" : "promoted to";
+                    ColorConsole.WriteLine($" Tag '{tagToPromote}' {action} parent '{parent.Id}'".Yellow());
+                    if (!ReportOnly)
+                    {
+                        await SaveWorkItemsAsync(parent).ConfigureAwait(false);
+                    }
                 }
             }
 
