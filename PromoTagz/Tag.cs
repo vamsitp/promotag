@@ -13,7 +13,7 @@ namespace PromoTagz
         public string Tag { get; set; }
         public DateTime? Added { get; set; }
         public DateTime? Removed { get; set; }
-        public string Duration => Added.HasValue && Removed.HasValue ? Removed.Value.Subtract(Added.Value).ToString("dd\\.h\\:mm") : string.Empty;
+        public string Duration => Added.HasValue && Removed.HasValue ? Removed.Value.Subtract(Added.Value).ToString("d\'d'\\ h\'h'\\ mm\'m'") : string.Empty;
         public string ChangedBy { get; set; }
     }
 }

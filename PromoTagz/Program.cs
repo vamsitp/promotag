@@ -191,7 +191,7 @@
                 workitems = await GetWorkItems(relations.ToList());
                 foreach (var wi in workitems)
                 {
-                    ColorConsole.WriteLine($" {wi.fields.SystemWorkItemType} ".PadRight(25) + wi.id.ToString().PadLeft(4) + Dot + wi.fields.SystemTitle + $" [Tags: {wi.fields.SystemTags}]");
+                    ColorConsole.WriteLine($" {wi.fields.SystemWorkItemType} ".PadLeft(22) + wi.id.ToString().PadLeft(6) + Dot + wi.fields.SystemTitle + $" [Tags: {wi.fields.SystemTags}]");
                     var efu = new EFU
                     {
                         Id = wi.id,
