@@ -5,20 +5,20 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <PackAsTool>true</PackAsTool>
     <IsTool>true</IsTool>
-    <ToolCommandName>promotagz</ToolCommandName>
+    <ToolCommandName>promodesc</ToolCommandName>
     <PackageOutputPath>./bin</PackageOutputPath>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>Vamsi TP</Authors>
-    <Title>PromoTagz</Title>
-    <Description>AzDevOps Tags Promoter - Specified Tags at PBI/UserStory level will be promoted to the parent Feature and then to the Epic.</Description>
-    <PackageDescription>AzDevOps Tags Promoter - Specified Tags at PBI/UserStory level will be promoted to the parent Feature and then to the Epic.</PackageDescription>
+    <Title>PromoDesc</Title>
+    <Description>AzDevOps Description Promoter - Task level Description will be promoted to the parent PBI/User-story.</Description>
+    <PackageDescription>AzDevOps Description Promoter - Task level Description will be promoted to the parent PBI/User-story.</PackageDescription>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/vamsitp/promotagz</PackageProjectUrl>
     <RepositoryUrl>https://github.com/vamsitp/promotagz</RepositoryUrl>
-    <PackageTags>Azure DevOps;Tags;PBI</PackageTags>
+    <PackageTags>Azure DevOps;Description;PBI;EFU;Task</PackageTags>
     <Company>Microsoft</Company>
-    <Version>1.0.1</Version>
-    <StartupObject>PromoTagz.Program</StartupObject>
+    <Version>1.0.0</Version>
+    <StartupObject>PromoDesc.Program</StartupObject>
     <ApplicationIcon />
   </PropertyGroup>
 
