@@ -364,19 +364,19 @@
 
                 if (string.IsNullOrWhiteSpace(content))
                 {
-                    queryHttpResponseMessage = await request.GetAsync().ConfigureAwait(false);
+                    queryHttpResponseMessage = (await request.GetAsync().ConfigureAwait(false)).ResponseMessage;
                 }
                 else
                 {
                     if (patch)
                     {
-                        var stringContent = new CapturedStringContent(content, Encoding.UTF8, JsonPatchMediaType);
-                        queryHttpResponseMessage = await request.PatchAsync(stringContent).ConfigureAwait(false);
+                        var stringContent = new CapturedStringContent(content, JsonPatchMediaType);
+                        queryHttpResponseMessage = (await request.PatchAsync(stringContent).ConfigureAwait(false)).ResponseMessage;
                     }
                     else
                     {
                         var stringContent = new StringContent(content, Encoding.UTF8, JsonMediaType);
-                        queryHttpResponseMessage = await request.PostAsync(stringContent).ConfigureAwait(false);
+                        queryHttpResponseMessage = (await request.PostAsync(stringContent).ConfigureAwait(false)).ResponseMessage;
                     }
                 }
 

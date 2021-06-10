@@ -7,12 +7,11 @@
     using System.Data;
     using System.Diagnostics;
     using System.Globalization;
-    using System.IO;
     using System.Linq;
     using System.Net.Http;
     using System.Text;
     using System.Threading.Tasks;
-    using ClosedXML.Excel;
+
     using ColoredConsole;
 
     using Flurl.Http;
@@ -22,7 +21,6 @@
 
     public class Program
     {
-        private const string WorkItemsJson = "./WorkItems.json";
         private const string Dot = ". ";
         private const string ApiVersion = "5.1";
         private const string JsonPatchMediaType = "application/json-patch+json";
@@ -31,9 +29,7 @@
         private const string BasicAuth = "Basic ";
         private const string SystemDescription = "/fields/System.Description";
         private const string AddOperation = "add";
-        private const string UserStory = "User Story";
-        private const string Pbi = "Product Backlog Item";
-        private const string Feature = "Feature";
+        private const string Task = "Task";
         public static char[] TagsDelimiters = new char[] { ' ', ',', ';' };
 
         private static string Account => ConfigurationManager.AppSettings[nameof(Account)];
@@ -51,8 +47,6 @@
         private static string WorkItemsQueryPath = $"{BaseUrl}/workitems?ids={{0}}&api-version={ApiVersion}"; //"queries/Shared Queries/EFUs";
 
         private static string WorkItemUpdateUrl => $"{BaseUrl}/workItems/{{0}}?api-version={ApiVersion}";
-
-        private static string WorkItemUpdatesUrl => $"{BaseUrl}/workItems/{{0}}/updates?api-version={ApiVersion}";
 
         private static readonly string WorkItemsQuery = ConfigurationManager.AppSettings["WorkItemsQuery"];
 
@@ -156,7 +150,7 @@
                 workitems = await GetWorkItems(relations.ToList());
                 foreach (var wi in workitems)
                 {
-                    ColorConsole.WriteLine($" {wi.fields.SystemWorkItemType} ".PadLeft(22) + wi.id.ToString().PadLeft(6) + Dot + wi.fields.SystemTitle + $" [Desc: {wi.fields.SystemDescription}]");
+                    ColorConsole.WriteLine($" {wi.fields.SystemWorkItemType} ".PadLeft(22) + wi.id.ToString().PadLeft(6) + Dot + wi.fields.SystemTitle);
                     var efu = new EFU
                     {
                         Id = wi.id,
@@ -205,16 +199,8 @@
 
         private static async Task PromoteWorkItemDescriptionAsync()
         {
-            var grouping = efus.Where(x => x.Workitemtype.Equals(UserStory) || x.Workitemtype.Equals(Pbi)).GroupBy(x => x.Parent); // .OrderByDescending(x => x.Id)
+            var grouping = efus.Where(x => x.Workitemtype.Equals(Task)).GroupBy(x => x.Parent); // .OrderByDescending(x => x.Id)
             await PromoteWorkItemDescriptionAsync(grouping).ConfigureAwait(false);
-
-            grouping = efus.Where(x => x.Workitemtype.Equals(Feature)).GroupBy(x => x.Parent);
-            await PromoteWorkItemDescriptionAsync(grouping).ConfigureAwait(false);
-
-            if (ReportOnly)
-            {
-                ColorConsole.WriteLine(" Skipped saving PBIs as 'ReportOnly' is set to true in config.".Black().OnWhite());
-            }
         }
 
         private static async Task PromoteWorkItemDescriptionAsync(IEnumerable<IGrouping<int?, EFU>> grouping)
@@ -224,13 +210,13 @@
                 var parentId = group.Key;
                 if (parentId != null)
                 {
-                    var descs = group.Where(x => x.Description != null).Select(x => x.Title + "<br />" + x.Description)?.Distinct()?.ToList();
+                    var descs = group.Where(x => x.Description != null).Select(x => "<li><b>" + x.Title + "</b><br />" + x.Description + "</li>")?.Distinct()?.ToList();
                     var parent = efus.SingleOrDefault(x => x.Id.Equals(parentId));
 
                     // Add
                     if (descs != null)
                     {
-                        var desc = "<br /><b>ACAI:</b><br />" + string.Join("<br />", descs);
+                        var desc = "<br /><b><u>ACAI:</u></b><br /><ol type='1'>" + string.Join(string.Empty, descs) + "</ol>";
                         await UpdateParentDescription(parent, desc).ConfigureAwait(false);
                     }
                 }
@@ -269,7 +255,7 @@
             {
                 // https://www.visualstudio.com/en-us/docs/integrate/api/wit/samples
                 Trace.TraceInformation($"BaseAddress: {Account} | Path: {path} | Content: {content}");
-                HttpResponseMessage queryHttpResponseMessage;
+                IFlurlResponse queryHttpResponseMessage;
                 var request = path.WithHeader(AuthHeader, BasicAuth + Pat);
 
                 if (string.IsNullOrWhiteSpace(content))
@@ -280,7 +266,7 @@
                 {
                     if (patch)
                     {
-                        var stringContent = new CapturedStringContent(content, Encoding.UTF8, JsonPatchMediaType);
+                        var stringContent = new CapturedStringContent(content, JsonPatchMediaType);
                         queryHttpResponseMessage = await request.PatchAsync(stringContent).ConfigureAwait(false);
                     }
                     else
@@ -290,14 +276,14 @@
                     }
                 }
 
-                if (queryHttpResponseMessage.IsSuccessStatusCode)
+                if (queryHttpResponseMessage.ResponseMessage.IsSuccessStatusCode)
                 {
-                    var result = await queryHttpResponseMessage.Content.ReadAsStringAsync();
+                    var result = await queryHttpResponseMessage.ResponseMessage.Content.ReadAsStringAsync();
                     return JsonConvert.DeserializeObject<T>(result);
                 }
                 else
                 {
-                    throw new Exception($"{queryHttpResponseMessage.ReasonPhrase}");
+                    throw new Exception($"{queryHttpResponseMessage.ResponseMessage.ReasonPhrase}");
                 }
             }
             catch (Exception ex)
@@ -306,30 +292,6 @@
                 WriteError(err);
                 return default(T);
             }
-        }
-
-        // Credit: https://stackoverflow.com/questions/18100783/how-to-convert-a-list-into-data-table
-        private static DataTable ToDataTable<T>(IList<T> data)
-        {
-            var properties = TypeDescriptor.GetProperties(typeof(T));
-            var table = new DataTable();
-            foreach (PropertyDescriptor prop in properties)
-            {
-                table.Columns.Add(prop.Name, Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType);
-            }
-
-            foreach (T item in data)
-            {
-                var row = table.NewRow();
-                foreach (PropertyDescriptor prop in properties)
-                {
-                    row[prop.Name] = prop.GetValue(item) ?? DBNull.Value;
-                }
-
-                table.Rows.Add(row);
-            }
-
-            return table;
         }
 
         private class Op
