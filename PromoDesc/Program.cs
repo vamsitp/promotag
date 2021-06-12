@@ -2,11 +2,10 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.ComponentModel;
-    using System.Configuration;
     using System.Data;
     using System.Diagnostics;
     using System.Globalization;
+    using System.IO;
     using System.Linq;
     using System.Net.Http;
     using System.Text;
@@ -16,6 +15,8 @@
 
     using Flurl.Http;
     using Flurl.Http.Content;
+
+    using Microsoft.Extensions.Configuration;
 
     using Newtonsoft.Json;
 
@@ -33,91 +34,71 @@
         private const string Task = "Task";
         public static char[] TagsDelimiters = new char[] { ' ', ',', ';' };
 
-        private static string Account => ConfigurationManager.AppSettings[nameof(Account)];
+        private static readonly string SettingsFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "PromoDesc.json");
 
-        private static string Project => ConfigurationManager.AppSettings[nameof(Project)];
+        private static IConfigurationRoot Config;
 
-        private static string PersonalAccessToken => ConfigurationManager.AppSettings[nameof(PersonalAccessToken)];
+        private static string Org => Config[nameof(Org)];
 
-        private static string Pat => Convert.ToBase64String(Encoding.ASCII.GetBytes($":{PersonalAccessToken ?? string.Empty}"));
+        private static string Project => Config[nameof(Project)];
 
-        private static string DescriptionPrefix => ConfigurationManager.AppSettings[nameof(DescriptionPrefix)];
+        private static string Token => Config[nameof(Token)];
 
-        private static string BaseUrl => $"https://dev.azure.com/{Account}/{Project}/_apis/wit";
+        private static string Pat => Convert.ToBase64String(Encoding.ASCII.GetBytes($":{Token ?? string.Empty}"));
 
-        private static string RelationsQueryPath = $"{BaseUrl}/wiql?api-version={ApiVersion}"; //"queries/Shared Queries/EFUs";
+        private static string DescriptionPrefix => Config[nameof(DescriptionPrefix)];
 
-        private static string WorkItemsQueryPath = $"{BaseUrl}/workitems?ids={{0}}&api-version={ApiVersion}"; //"queries/Shared Queries/EFUs";
+        private static string BaseUrl => $"https://dev.azure.com/{Org}/{Project}/_apis/wit";
+
+        private static string RelationsQueryPath => $"{BaseUrl}/wiql?api-version={ApiVersion}"; //"queries/Shared Queries/EFUs";
+
+        private static string WorkItemsQueryPath => $"{BaseUrl}/workitems?ids={{0}}&api-version={ApiVersion}"; //"queries/Shared Queries/EFUs";
 
         private static string WorkItemUpdateUrl => $"{BaseUrl}/workItems/{{0}}?api-version={ApiVersion}";
 
-        private static readonly string WorkItemsQuery = ConfigurationManager.AppSettings["WorkItemsQuery"];
+        private static string WorkItemsQuery => Config["WorkItemsQuery"];
 
-        private static bool ReportOnly => ConfigurationManager.AppSettings.AllKeys.Contains(nameof(ReportOnly)) && bool.Parse(ConfigurationManager.AppSettings[nameof(ReportOnly)]);
+        private static bool ReportOnly => bool.Parse(Config[nameof(ReportOnly)] ??  "false");
 
         private static List<EFU> efus = null;
 
         private static List<WorkItem> workitems = null;
 
         [STAThread]
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-            Execute().Wait();
-            ColorConsole.WriteLine($"\nDone! Press 'O' to open the file or any other key to exit...".White().OnGreen());
-            var key = Console.ReadKey();
-        }
+            var builder = new ConfigurationBuilder();
+            builder.AddJsonFile(GetSettingsFile(), false, true);
+            Config = builder.Build();
 
-        public static async Task Execute()
-        {
             try
             {
-                CheckSettings();
-                await ProcessWorkItems();
+                await ProcessWorksAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 WriteError(ex.Message);
             }
+
+            ColorConsole.WriteLine($"\nDone! Press 'O' to open the file or any other key to exit...".White().OnGreen());
+            var key = Console.ReadKey();
         }
 
-        private static void CheckSettings(bool reset = false)
+        private static string GetSettingsFile()
         {
-            var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-            var section = config.Sections.OfType<AppSettingsSection>().FirstOrDefault();
-            var settings = section.Settings;
-            var save = false;
-
-            if (reset)
+            if (!File.Exists(SettingsFile))
             {
-                ConfigurationManager.AppSettings.Set(nameof(Account), string.Empty);
-                ConfigurationManager.AppSettings.Set(nameof(Project), string.Empty);
-                ConfigurationManager.AppSettings.Set(nameof(PersonalAccessToken), string.Empty);
+                var settings = new { Org = "My Org", Project = "My Project", Token = "My PAT", DescriptionPrefix = "", WorkItemsQuery = "Select [System.Id], [System.WorkItemType], [System.Title], [System.Tags], [System.Description] From WorkItemLinks WHERE (Source.[System.TeamProject] = '{0}' and Source.[System.WorkItemType] = 'Epic') and ([System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward') and (Target.[System.State] != 'Removed' and Target.[System.WorkItemType] in ('User Story', 'Product Backlog Item', 'Task')) mode(Recursive)", ReportOnly = true };
+                SetSettings(settings);
+                ColorConsole.WriteLine("Update settings here: ".Red(), SettingsFile);
             }
 
-            if (string.IsNullOrWhiteSpace(Account) || string.IsNullOrWhiteSpace(Project) || string.IsNullOrWhiteSpace(PersonalAccessToken))
-            {
-                ColorConsole.WriteLine("\n Please provide Azure DevOps details in the format (without braces): <Account> <Project> <PersonalAccessToken>".Black().OnCyan());
-                var details = Console.ReadLine().Split(' ')?.ToList();
-
-                for (var i = 0; i < 3; i++) // Only 4 values required
-                {
-                    var key = settings.AllKeys[i];
-                    settings[key].Value = details[i];
-                }
-
-                save = true;
-            }
-
-            if (save)
-            {
-                config.Save(ConfigurationSaveMode.Minimal);
-                ConfigurationManager.RefreshSection(section.SectionInformation.Name);
-            }
+            return SettingsFile;
         }
 
-        private static async Task ProcessWorkItems()
+        private static void SetSettings(object settings)
         {
-            await ProcessWorkItemDescAsync().ConfigureAwait(false);
+            File.WriteAllText(SettingsFile, JsonConvert.SerializeObject(settings, new JsonSerializerSettings { Formatting = Formatting.Indented, NullValueHandling = NullValueHandling.Ignore }));
         }
 
         private static void WriteError(string error)
@@ -125,7 +106,7 @@
             ColorConsole.WriteLine($"Error: {error}".White().OnRed());
         }
 
-        private static async Task ProcessWorkItemDescAsync()
+        private static async Task ProcessWorksAsync()
         {
             if (efus == null)
             {
@@ -140,8 +121,7 @@
                 }
                 else
                 {
-                    CheckSettings(true);
-                    await ProcessWorkItemDescAsync().ConfigureAwait(false);
+                    await ProcessWorksAsync().ConfigureAwait(false);
                 }
             }
         }
@@ -204,7 +184,12 @@
         private static async Task PromoteWorkItemDescriptionAsync()
         {
             var grouping = efus.Where(x => x.Workitemtype.Equals(Task)).GroupBy(x => x.Parent); // .OrderByDescending(x => x.Id)
-            await PromoteWorkItemDescriptionAsync(grouping).ConfigureAwait(false);
+            ColorConsole.Write($"\nProcess {grouping.Count()} PBIs? (Y/N) ".Yellow());
+            var input = Console.ReadLine();
+            if (input.Equals("Y", StringComparison.OrdinalIgnoreCase))
+            {
+                await PromoteWorkItemDescriptionAsync(grouping).ConfigureAwait(false);
+            }
         }
 
         private static async Task PromoteWorkItemDescriptionAsync(IEnumerable<IGrouping<int?, EFU>> grouping)
@@ -218,10 +203,10 @@
                     var childStates = group.Where(x => x.Workitemtype == "Task").Select(x => x.State)?.Distinct()?.ToList();
                     var parent = efus.SingleOrDefault(x => x.Id.Equals(parentId));
 
-                    // Add
-                    if (childDescs != null)
+                    // Add if does not exist already
+                    if (!parent.Description.Contains(DescriptionPrefix) && childDescs != null)
                     {
-                        var desc = $"<br /><b><u>{DescriptionPrefix}:</u></b><br /><ol type='1'>" + string.Join(string.Empty, childDescs) + "</ol>";
+                        var desc = $"<br /><br /><b><u>{DescriptionPrefix}:</u></b><br /><ol type='1'>" + string.Join(string.Empty, childDescs) + "</ol>";
                         var state = parent.CalculateState(childStates);
                         await UpdateParentDescription(parent, desc, state).ConfigureAwait(false);
                     }
@@ -234,10 +219,13 @@
             var update = false;
             if (parent != null && parent.Description?.Contains(desc) != true)
             {
-                ColorConsole.WriteLine($"Updating Description and State ({parent.State} > {state}) for {parent.Id}".Yellow());
                 if (!ReportOnly)
                 {
                     await SaveWorkItemsAsync(parent, desc, state).ConfigureAwait(false);
+                }
+                else
+                {
+                    ColorConsole.WriteLine($"Updating Description & State ({parent.State} > {state}) for {parent.Id}".Yellow());
                 }
             }
 
@@ -253,7 +241,7 @@
             }.ToList();
 
             var result = await ProcessRequest<dynamic>(string.Format(CultureInfo.InvariantCulture, WorkItemUpdateUrl, workItem.Id), ops?.ToJson(), true).ConfigureAwait(false);
-            ColorConsole.WriteLine($"Updated Description for {workItem.Id}: {desc}".White().OnDarkGreen());
+            ColorConsole.WriteLine($"Updated Description & State ({workItem.State} > {state}) for {workItem.Id}".White().OnDarkGreen());
         }
 
         private static async Task<T> ProcessRequest<T>(string path, string content = null, bool patch = false)
@@ -261,7 +249,7 @@
             try
             {
                 // https://www.visualstudio.com/en-us/docs/integrate/api/wit/samples
-                Trace.TraceInformation($"BaseAddress: {Account} | Path: {path} | Content: {content}");
+                Trace.TraceInformation($"BaseAddress: {Org} | Path: {path} | Content: {content}");
                 IFlurlResponse queryHttpResponseMessage;
                 var request = path.WithHeader(AuthHeader, BasicAuth + Pat);
 

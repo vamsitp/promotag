@@ -1,0 +1,8 @@
+{
+  "Org": "",
+  "Project": "",
+  "Token": "",
+  "DescriptionPrefix": "",
+  "WorkItemsQuery": "Select [System.Id], [System.WorkItemType], [System.Title], [System.Tags], [System.Description] From WorkItemLinks WHERE (Source.[System.TeamProject] = '{0}' and Source.[System.WorkItemType] = 'Epic') and ([System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward') and (Target.[System.State] != 'Removed' and Target.[System.WorkItemType] in ('User Story', 'Product Backlog Item', 'Task')) mode(Recursive)",
+  "ReportOnly": false
+}
