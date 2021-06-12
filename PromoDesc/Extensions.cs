@@ -75,5 +75,59 @@
 
             return string.Empty;
         }
+
+        public static string CalculateState(this EFU parent, List<string> childStates)
+        {
+            if (parent.Workitemtype == "User Story") // US: New / Active / Resolved / Closed / Removed
+            {
+                // Task: New / Active / Closed / Removed
+                if (childStates.All(x => x == "New"))
+                {
+                    return "New";
+                }
+                else if (childStates.All(x => x == "Removed"))
+                {
+                    return "Removed";
+                }
+                else if (childStates.All(x => x == "Closed"))
+                {
+                    return "Closed";
+                }
+                else if (childStates.All(x => x == "Closed" || x == "Removed"))
+                {
+                    return "Resolved";
+                }
+                else // Active
+                {
+                    return "Active";
+                }
+            }
+            else if (parent.Workitemtype == "Product Backlog Item") // PBI: New / Approved / Committed / Done / Removed
+            {
+                // Task: ToDo / In Progress / Done / Removed
+                if (childStates.All(x => x == "New"))
+                {
+                    return "New";
+                }
+                else if (childStates.All(x => x == "Removed"))
+                {
+                    return "Removed";
+                }
+                else if (childStates.All(x => x == "Done"))
+                {
+                    return "Done";
+                }
+                else if (childStates.All(x => x == "Done" || x == "Removed"))
+                {
+                    return "Approved";
+                }
+                else // In Progress
+                {
+                    return "Committed";
+                }
+            }
+
+            return parent.State;
+        }
     }
 }

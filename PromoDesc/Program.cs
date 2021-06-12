@@ -28,6 +28,7 @@
         private const string AuthHeader = "Authorization";
         private const string BasicAuth = "Basic ";
         private const string SystemDescription = "/fields/System.Description";
+        private const string SystemState = "/fields/System.State";
         private const string AddOperation = "add";
         private const string Task = "Task";
         public static char[] TagsDelimiters = new char[] { ' ', ',', ';' };
@@ -39,6 +40,8 @@
         private static string PersonalAccessToken => ConfigurationManager.AppSettings[nameof(PersonalAccessToken)];
 
         private static string Pat => Convert.ToBase64String(Encoding.ASCII.GetBytes($":{PersonalAccessToken ?? string.Empty}"));
+
+        private static string DescriptionPrefix => ConfigurationManager.AppSettings[nameof(DescriptionPrefix)];
 
         private static string BaseUrl => $"https://dev.azure.com/{Account}/{Project}/_apis/wit";
 
@@ -156,6 +159,7 @@
                         Id = wi.id,
                         Title = wi.fields.SystemTitle,
                         Description = wi.fields.SystemDescription,
+                        State = wi.fields.SystemState,
                         Workitemtype = wi.fields.SystemWorkItemType,
                         Tags = wi.fields.SystemTags?.Split(TagsDelimiters, StringSplitOptions.RemoveEmptyEntries)?.Select(x => x.Trim())?.ToList(),
                         Parent = parent?.Id
@@ -210,39 +214,42 @@
                 var parentId = group.Key;
                 if (parentId != null)
                 {
-                    var descs = group.Where(x => x.Description != null).Select(x => "<li><b>" + x.Title + "</b><br />" + x.Description + "</li>")?.Distinct()?.ToList();
+                    var childDescs = group.Where(x => x.Description != null).Select(x => "<li><b>" + x.Title + "</b><br />" + x.Description + "</li>")?.Distinct()?.ToList();
+                    var childStates = group.Where(x => x.Workitemtype == "Task").Select(x => x.State)?.Distinct()?.ToList();
                     var parent = efus.SingleOrDefault(x => x.Id.Equals(parentId));
 
                     // Add
-                    if (descs != null)
+                    if (childDescs != null)
                     {
-                        var desc = "<br /><b><u>ACAI:</u></b><br /><ol type='1'>" + string.Join(string.Empty, descs) + "</ol>";
-                        await UpdateParentDescription(parent, desc).ConfigureAwait(false);
+                        var desc = $"<br /><b><u>{DescriptionPrefix}:</u></b><br /><ol type='1'>" + string.Join(string.Empty, childDescs) + "</ol>";
+                        var state = parent.CalculateState(childStates);
+                        await UpdateParentDescription(parent, desc, state).ConfigureAwait(false);
                     }
                 }
             }
         }
 
-        private static async Task<bool> UpdateParentDescription(EFU parent, string desc)
+        private static async Task<bool> UpdateParentDescription(EFU parent, string desc, string state)
         {
             var update = false;
             if (parent != null && parent.Description?.Contains(desc) != true)
             {
-                ColorConsole.WriteLine($" Description '{desc}' promoted to parent '{parent.Id}'".Yellow());
+                ColorConsole.WriteLine($"Updating Description and State ({parent.State} > {state}) for {parent.Id}".Yellow());
                 if (!ReportOnly)
                 {
-                    await SaveWorkItemsAsync(parent, desc).ConfigureAwait(false);
+                    await SaveWorkItemsAsync(parent, desc, state).ConfigureAwait(false);
                 }
             }
 
             return update;
         }
 
-        public static async Task SaveWorkItemsAsync(EFU workItem, string desc)
+        public static async Task SaveWorkItemsAsync(EFU workItem, string desc, string state)
         {
             var ops = new[]
             {
-                new Op { op = AddOperation, path = SystemDescription, value = workItem.Description + desc }
+                new Op { op = AddOperation, path = SystemDescription, value = workItem.Description + desc },
+                new Op { op = AddOperation, path = SystemState, value = state }
             }.ToList();
 
             var result = await ProcessRequest<dynamic>(string.Format(CultureInfo.InvariantCulture, WorkItemUpdateUrl, workItem.Id), ops?.ToJson(), true).ConfigureAwait(false);

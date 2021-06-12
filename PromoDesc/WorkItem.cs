@@ -150,6 +150,7 @@
         public int Id { get; set; }
         public string Title { get; set; }
         public string Description { get; set; }
+        public string State { get; set; }
         public string Workitemtype { get; set; }
         public List<int> Children { get; set; }
         public int? Parent { get; set; }
