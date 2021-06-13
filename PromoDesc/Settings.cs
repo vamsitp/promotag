@@ -2,11 +2,14 @@
 {
     using System;
     using System.Text;
+    using System.Text.Json.Serialization;
 
     public class Settings
     {
         private const string ApiVersion = "6.0";
 
+        [JsonIgnore]
+        public string Name { get; set; }
         public string Org { get; set; }
         public string Project { get; set; }
         public string Token { get; set; }
