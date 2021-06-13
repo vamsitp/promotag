@@ -129,5 +129,10 @@
 
             return parent.State;
         }
+
+        public static void WriteError(this string error)
+        {
+            ColorConsole.WriteLine($"Error: {error}".White().OnRed());
+        }
     }
 }
