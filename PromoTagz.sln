@@ -13,8 +13,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PromoDesc", "PromoDesc\PromoDesc.csproj", "{B586F71A-5EB3-4F79-8B06-CA99C973F37C}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -25,10 +23,6 @@ Global
 		{E62CE513-BD5B-42BA-8C79-FF458F46F158}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E62CE513-BD5B-42BA-8C79-FF458F46F158}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E62CE513-BD5B-42BA-8C79-FF458F46F158}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B586F71A-5EB3-4F79-8B06-CA99C973F37C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B586F71A-5EB3-4F79-8B06-CA99C973F37C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B586F71A-5EB3-4F79-8B06-CA99C973F37C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B586F71A-5EB3-4F79-8B06-CA99C973F37C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
